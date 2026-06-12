@@ -1,0 +1,130 @@
+/* Tasket++ Workflows — Global Styles */
+
+/* React Flow overrides for dark theme */
+.react-flow {
+  --xy-edge-stroke: rgba(148, 163, 184, 0.3);
+  --xy-edge-stroke-selected: rgba(59, 130, 246, 0.6);
+  --xy-connectionline-stroke: rgba(59, 130, 246, 0.5);
+  --xy-handle-background: #3b82f6;
+  --xy-handle-border-color: #1a1a2e;
+  --xy-selection-background: rgba(59, 130, 246, 0.08);
+  --xy-selection-border: rgba(59, 130, 246, 0.4);
+}
+
+.react-flow__node {
+  transition: transform 0.15s ease;
+}
+
+.react-flow__node:hover {
+  z-index: 10 !important;
+}
+
+.react-flow__edge-path {
+  stroke-width: 1.5;
+}
+
+.react-flow__edge.animated .react-flow__edge-path {
+  stroke-dasharray: 5;
+  animation: dashdraw 0.5s linear infinite;
+}
+
+@keyframes dashdraw {
+  from {
+    stroke-dashoffset: 10;
+  }
+}
+
+.react-flow__controls button {
+  background: rgba(26, 26, 46, 0.8) !important;
+  border-color: rgba(255, 255, 255, 0.1) !important;
+  color: rgba(255, 255, 255, 0.6) !important;
+}
+
+.react-flow__controls button:hover {
+  background: rgba(26, 26, 46, 1) !important;
+  color: white !important;
+}
+
+.react-flow__minimap {
+  background: rgba(26, 26, 46, 0.8) !important;
+  border: 1px solid rgba(255, 255, 255, 0.1) !important;
+  border-radius: 8px !important;
+}
+
+.react-flow__attribution {
+  display: none !important;
+}
+
+/* Edge labels */
+.react-flow__edge-label {
+  background: rgba(26, 26, 46, 0.9) !important;
+  color: rgba(255, 255, 255, 0.7) !important;
+  font-size: 10px !important;
+  padding: 2px 8px !important;
+  border-radius: 4px !important;
+  border: 1px solid rgba(255, 255, 255, 0.1) !important;
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+/* Selection */
+::selection {
+  background: rgba(59, 130, 246, 0.3);
+  color: white;
+}
+
+/* Drag ghost */
+[draggable="true"] {
+  cursor: grab;
+}
+
+[draggable="true"]:active {
+  cursor: grabbing;
+}
+
+/* Range input */
+input[type="range"] {
+  -webkit-appearance: none;
+  appearance: none;
+  height: 4px;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 2px;
+  outline: none;
+}
+
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #3b82f6;
+  cursor: pointer;
+  border: 2px solid rgba(10, 10, 20, 0.8);
+}
+
+input[type="range"]::-moz-range-thumb {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #3b82f6;
+  cursor: pointer;
+  border: 2px solid rgba(10, 10, 20, 0.8);
+}
