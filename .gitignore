@@ -1,1 +1,43 @@
-#
+# Build artifacts
+/build/
+/cmake-build-*/
+/dist/
+*.exe
+*.dll
+*.pdb
+
+# Node
+node_modules/
+package-lock.json
+bun.lockb
+
+# Qt / C++
+*.moc
+moc_*.cpp
+moc_*.h
+qrc_*.cpp
+ui_*.h
+
+# IDE
+.idea/
+.vs/
+.vscode/
+*.user
+*.sln
+*.vcxproj*
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Python tests
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# Runtime state
+.tasketconfig.json
+.tasketpids.json
+
+# Logs
+*.log
