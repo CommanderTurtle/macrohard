@@ -282,6 +282,12 @@ void HttpServer::handleRunGet(const httplib::Request &req, httplib::Response &re
     QString description = readTaskDescription(taskPath);
 
     TaskInstance ti = m_registry->scheduleTask(taskName, taskPath, delay, loopTimes, description);
+    if(ti.taskNumber <= 0)
+    {
+        sendResponse(res, ApiResponse::error(HttpStatusCode::BadRequest,
+            "Invalid parameters: delay must be >= 0 and loop must be != 0"));
+        return;
+    }
     emit requestReceived("GET", "/run", QString("%1 (#%2, delay=%3s)").arg(taskName).arg(ti.taskNumber).arg(delay));
 
     sendResponse(res, ApiResponse::taskScheduled(ti));
@@ -336,6 +342,12 @@ void HttpServer::handleRunPost(const httplib::Request &req, httplib::Response &r
     QString description = readTaskDescription(taskPath);
 
     TaskInstance ti = m_registry->scheduleTask(taskName, taskPath, delay, loopTimes, description);
+    if(ti.taskNumber <= 0)
+    {
+        sendResponse(res, ApiResponse::error(HttpStatusCode::BadRequest,
+            "Invalid parameters: delay must be >= 0 and loop must be != 0"));
+        return;
+    }
     emit requestReceived("POST", "/run", QString("%1 (#%2, delay=%3s)").arg(taskName).arg(ti.taskNumber).arg(delay));
 
     sendResponse(res, ApiResponse::taskScheduled(ti));

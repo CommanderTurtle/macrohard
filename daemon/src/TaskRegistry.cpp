@@ -25,6 +25,10 @@ TaskInstance TaskRegistry::scheduleTask(const QString &name, const QString &path
                                           int delaySec, int loops,
                                           const QString &description)
 {
+    // v1.8 guards: reject invalid params (matches upstream TaskTabsManager + MainWindow fix)
+    if(delaySec < 0 || loops == 0)
+        return TaskInstance();
+
     QMutexLocker lock(&m_mutex);
 
     TaskInstance ti;

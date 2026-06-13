@@ -169,7 +169,21 @@ of the daemon process and are independent of task execution.
 | Execution log stream | 3/10 | Buffer logs, serve via `/events` SSE endpoint |
 | Cron-style scheduling | 4/10 | Parse cron expr, use QTimer for next trigger |
 
-## 12. Required Patch
+## 12. v1.8 Upstream Sync
+
+The v1.8 upstream fix "repaired running another task infinite run" changed
+`m_timesToRun > 0` to `m_timesToRun != 0` in `RunningOtherTaskAction::runAction()`.
+This allows negative loop values (which mean "infinite" in Tasket++).
+
+Our daemon uses a different design — `bool m_loop` + `unsigned int m_timesToRun`
+— so the exact bug doesn't apply. But we sync the **semantics**:
+
+- **TaskRegistry::scheduleTask()** guards: `delay < 0 || loops == 0` → rejected
+- **TaskRunner::executeTask()**: `loopTimes < 0` → `setLoop(true, 1)` (infinite)
+- **HttpServer**: validates the returned `TaskInstance` and returns 400 for rejected params
+- **Workflow engine native mode**: caps infinite loops at 100 in browser context
+
+## 13. Required Patch
 
 The daemon requires one non-breaking patch to `Task.h`:
 
@@ -179,23 +193,4 @@ The daemon requires one non-breaking patch to `Task.h`:
 @@ -16,6 +16,7 @@ public:
      int appendAction(const std::shared_ptr<AbstractAction> &act);
  
-     friend class TaskThread;
-     friend class TaskTab;
-     friend class TaskTabsManager;
-+    friend class TaskExecutor;
- };
-```
-
-This allows `TaskExecutor::loadFromTask()` to iterate over `m_actionsOrderedList`
-and call `deepCopy()` on each action — the same pattern `TaskThread::copyActionsList()`
-uses, but via a public method on our own class.
-
-## 13. Migration Path to Full Integration
-
-If the Tasket++ author wants to merge this into the main app:
-1. Move `HttpServer`, `TaskRegistry`, `TaskRunner`, `TaskExecutor` into the project.
-2. Replace `MainWindow` stub with the real `MainWindow`.
-3. Add menu item: **Tools > Start HTTP Trigger**.
-4. Reuse the same `TaskJsonLoader`.
-
-No rewrite needed — the sidecar code is architecturally ready.
+     f
