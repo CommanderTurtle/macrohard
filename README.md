@@ -3,7 +3,7 @@
 > **A complete rewrite and extension of Tasket++ with a ComfyUI-style node editor,
 > IF/THEN/ELSE checkpoints, and a typed HTTP trigger daemon.**
 >
-> Extension of [AmirHammouteneEI/ScheduledPasteAndKeys](https://github.com/AmirHammouteneEI/ScheduledPasteAndKeys) (tested against v1.8, June 2026)
+> Extension for [AmirHammouteneEI/ScheduledPasteAndKeys](https://github.com/AmirHammouteneEI/ScheduledPasteAndKeys) (tested against v1.8, June 2026)
 >
 > Three components, one ecosystem: **Daemon** (C++) | **Workflows** (React) | **PI Agent** (TypeScript)
 
@@ -122,7 +122,7 @@ and creates a `.tasketconfig.json` for the runtime.
 ## Repository Structure
 
 ```
-macrohard/
+tasketpp/
 |                   # ---- Root ----
 | README.md         # This file
 | install.ps1       # One-click Windows installer (Administrator)
@@ -373,6 +373,7 @@ curl -X POST "http://192.168.1.50:7777/grid" \
 
 ## Version History
 
+- **2.1.1** — Synced with Tasket++ v1.8 upstream: infinite-loop guard fix (`loop != 0` check), negative loop value handling in native execution, parameter validation on both GET/POST /run
 - **2.1.0** — Full ComfyUI-style UX: undo/redo history, "just start typing" command palette, floating node action buttons (copy/duplicate/delete), keyboard-first workflow
 - **2.0.0** — Workflow editor v2: copy/paste/delete, inline grid/entrypoint editing, native fallback execution, POST /entrypoint + /grid endpoints
 - **1.8.0** — Aligned with Tasket++ v1.8 (Qt 6.9.3): TaskExecutor friend patch, RunningOtherTask action support
