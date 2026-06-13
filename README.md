@@ -1,4 +1,6 @@
-# Macrohard — Visual Workflow Automation Platform for Tasket++
+# Macrohard — Visual Workflow Automation Platform for Tasket++, inspired by ComfyUI
+
+![](https://github.com/CommanderTurtle/macrohard/blob/main/examples/Screenshot.png?raw=true)
 
 > **A complete rewrite and extension of Tasket++ with a ComfyUI-style node editor,
 > IF/THEN/ELSE checkpoints, and a typed HTTP trigger daemon.**
