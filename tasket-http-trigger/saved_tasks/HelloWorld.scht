@@ -1,0 +1,35 @@
+{
+  "docType": "ScheduleTask File",
+  "description": "Opens Notepad, types a greeting, waits, then closes it.",
+  "http_delay": 10,
+  "actions": [
+    {
+      "type": "systemcommand",
+      "sysCommandType": "executeprogram",
+      "sysCommandParam1": "notepad.exe",
+      "sysCommandParam2": ""
+    },
+    {
+      "type": "wait",
+      "duration": 1.5
+    },
+    {
+      "type": "paste",
+      "content": "Hello from Tasket++ HTTP Trigger!",
+      "contentId": "",
+      "loop": 1
+    },
+    {
+      "type": "wait",
+      "duration": 3.0
+    },
+    {
+      "type": "keyssequence",
+      "keysmap": {
+        "0": [100, ["ALT_LEFT", "F4"]]
+      },
+      "keysSeqId": "",
+      "loop": 1
+    }
+  ]
+}

@@ -1,0 +1,35 @@
+# Build artifacts
+/build/
+/build-*/
+/cmake-build-*/
+/out/
+*.exe
+*.dll
+*.pdb
+
+# Qt
+*.moc
+moc_*.cpp
+moc_*.h
+qrc_*.cpp
+ui_*.h
+
+# IDE
+.idea/
+.vs/
+.vscode/
+*.user
+*.sln
+*.vcxproj*
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Python tests
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# Misc
+*.log
