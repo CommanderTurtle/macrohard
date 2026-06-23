@@ -1,4 +1,4 @@
-# Macrohard — Visual Workflow Automation Platform for Tasket++, inspired by ComfyUI
+# Macrohard — Assembly tree (in active development)
 
 ![](https://github.com/CommanderTurtle/macrohard/blob/main/examples/Screenshot.png?raw=true)
 
@@ -10,6 +10,21 @@
 > Three components, one ecosystem: **Daemon** (C++) | **Workflows** (React) | **PI Agent** (TypeScript)
 
 ---
+
+This is the non-comfy backend. A native HTTP server sidecar for tasket++. Synced with a pi skill
+
+Main frontend exceeds 2MB post-build. (Comfy+Node)
+
+This file tree is the initial design for the HTTP sidecar, written completely in C. Allowing automation of existing flows natively without a database through MCP.
+
+800kb built HTTP-server and only 3 js files for pi (node_modules). Mostly typescript for the pi tooling (42kb)
+
+All beta, but groundwork for eventual update for a lightweight standard version without an entire browser host.
+
+---
+
+Comfy (main) readme:
+
 
 ## What's New
 
