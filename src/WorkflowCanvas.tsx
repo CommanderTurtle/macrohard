@@ -9,7 +9,7 @@ function tone(op: string) {
   if (["if","else","endif"].includes(op)) return "amber";
   if (op === "wait") return "green";
   if (["rgd","rgdclip","rgdappend","profile","play"].includes(op)) return "pink";
-  if (["point","pt","zone","zonebuf","left","right","middle","click"].includes(op)) return "cyan";
+  if (["point","pt","zone","zonebuf","screen","left","right","middle","click"].includes(op)) return "cyan";
   return "violet";
 }
 function StepNode({ data, selected }: NodeProps<Node<StepData>>) {

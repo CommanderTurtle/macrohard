@@ -16,6 +16,16 @@ test("balanced command graph respects nested literal JSON, multiline and exact s
   expect(replaceCommand(text,result.items[1],'{wait 500}')).toBe(text.replace('{wait 200}','{wait 500}'));
   for(const bad of ['{type broken','{else}','{if A empty}{type hi}','{type hi}}','outside'])expect(commands(bad).errors.length).toBeGreaterThan(0);
 });
+
+test("modern capture and shell syntax stays literal and invalid shell selectors fail cleanly",()=>{
+  const source='{screen}{zone Z,S}{zone V,V}{zone Z,X}{zone Z,C}{zonebuf Z,C,V}{shell P}{type {shell type}}';
+  expect(commands(source).errors).toEqual([]);
+  for(const invalid of ['{shell type}','{screen unwanted}']) expect(commands(invalid).errors.length).toBeGreaterThan(0);
+  expect(importDocument(source).script).toBe(source);
+  const env=cloneEnv(initialEnv);env.shellAliases.P='type';expect(()=>controlConfig(env)).toThrow('shell starter');
+  env.shellAliases.P='my-powershell --profile';expect(controlConfig(env).shells.P).toBe('my-powershell --profile');
+  env.shellAliases.P='';expect(controlConfig(env).shells.P).toBe('');
+});
 test("Regedited zones use actual zero-based inclusive line pointers and roundtrip complete state",()=>{
   const env=cloneEnv(initialEnv);env.script='{set cbuf {\n"x": {}\n}}\n{wait 0}\n{type literal\\n}';env.vars.A='a\nb';
   const doc=registryDocument(env,17),rows=doc.split('\n'),words=rows[2].split(' : ');

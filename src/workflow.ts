@@ -15,6 +15,8 @@ export function commands(script: string): { items: Command[]; errors: string[] }
       const raw = script.slice(start, i + 1), inner = raw.slice(1, -1).trim();
       const split = /^(\S+)(?:\s([\s\S]*))?$/.exec(inner), op = split?.[1].toLowerCase() || "", body = split?.[2] || "";
       items.push({ start, end: i + 1, raw, op, body });
+      if (op === "shell" && body.trim() && !/^[XCGP]$/i.test(body.trim())) issue(start, "Shell alias must be X, C, G or P");
+      if (op === "screen" && body.trim()) issue(start, "{screen} takes no arguments");
       if (op === "if") branches.push(false);
       if (op === "else") { if (!branches.length || branches.at(-1)) issue(start, "Unexpected else"); else branches[branches.length-1] = true; }
       if (op === "endif" || inner.toLowerCase() === "end if") { if (!branches.length) issue(start, "Unexpected endif"); else branches.pop(); }
@@ -87,6 +89,10 @@ export function projectLayout(text: string): Layout {
   return Object.fromEntries(entries.map(([key,v])=>[key,{x:v.x,y:v.y}]));
 }
 export function controlConfig(env: MacrohelpEnvironment) {
+  for (const [slot,value] of Object.entries(env.shellAliases)) {
+    if (/[\r\n\x00-\x1f\x7f]/.test(value)) throw Error(`Shell ${slot} must be a single line`);
+    if (slot !== 'T' && /^(type|press|set|wait|paste|buf|zone|zonebuf|screen)$/i.test(value.trim())) throw Error(`Shell ${slot}: choose a shell starter command, not a Registry Hub instruction`);
+  }
   const coordinate = (value: string): number | string => {
     const board = /^(-?)_([a-z]+)$/i.exec(value);
     if (board) {
