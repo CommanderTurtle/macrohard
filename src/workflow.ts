@@ -87,10 +87,24 @@ export function projectLayout(text: string): Layout {
   return Object.fromEntries(entries.map(([key,v])=>[key,{x:v.x,y:v.y}]));
 }
 export function controlConfig(env: MacrohelpEnvironment) {
+  const coordinate = (value: string): number => {
+    const board = /^(-?)_([a-z]+)$/i.exec(value);
+    if (board) {
+      let cell = 0;
+      for (const letter of board[2].toLowerCase()) {
+        cell = cell * 26 + letter.charCodeAt(0) - 96;
+        if (cell > 2000) throw Error(`Board coordinate out of range: ${value}`);
+      }
+      return (board[1] ? -1 : 1) * ((cell - 1) * 50 + 25);
+    }
+    const number = Number(value);
+    if (!value || !Number.isFinite(number) || Math.abs(number) > 100000) throw Error(`Invalid coordinate: ${value}`);
+    return number;
+  };
   const coords = (value: string, count: number): number[] => {
     const parts = value.trim().split(/[,\s]+/);
-    if (parts.length !== count || parts.some(v => !v.trim() || !Number.isFinite(Number(v)) || Math.abs(Number(v)) > 100000)) throw Error(`Expected ${count} coordinates: ${value}`);
-    return parts.map(Number);
+    if (parts.length !== count) throw Error(`Expected ${count} coordinates: ${value}`);
+    return parts.map(coordinate);
   };
   const points = Object.fromEntries(Object.entries(env.points).map(([n,p]) => [n, p.set ? coords(p.value,2) : null]));
   const zone = (slot: string, seen: string[] = []): number[] | null => {
@@ -100,7 +114,12 @@ export function controlConfig(env: MacrohelpEnvironment) {
     const value = item.value.trim().toUpperCase();
     if (/^[ZXCV]$/.test(value)) return zone(value,seen.concat(slot));
     const pair = value.split(/[,\s]+/);
-    if (pair.length === 2) { const a = points[pair[0]], b = points[pair[1]]; if (!a || !b) throw Error(`Zone ${slot} refers to an unset point`); return [...a,...b]; }
+    if (pair.length === 2) {
+      const point = (key: string) => points[/^[A-P]$/.test(key) ? String(key.charCodeAt(0) - 64) : key];
+      const a = point(pair[0]), b = point(pair[1]);
+      if (!a || !b) throw Error(`Zone ${slot} refers to an unset point`);
+      return [...a,...b];
+    }
     return coords(item.value,4);
   };
   return { script: env.script, registry: env.registryFilePath, vars: env.vars, buffers: env.pastes, shells: env.shellAliases,

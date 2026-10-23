@@ -37,6 +37,25 @@ test.skipIf(!Bun.which('rgd'))("generated zones are readable by the installed rg
     const result=Bun.spawnSync(['rgd','rg',file,ref]);expect(result.exitCode).toBe(0);expect(result.stdout.toString().trimEnd()).toBe(expected.trimEnd());
   }}finally{unlinkSync(file)}
 });
+test("board coordinates resolve only in point and zone fields; source and literal content roundtrip unchanged",()=>{
+  const env=cloneEnv(initialEnv);
+  env.script='{set point a _a,_h}\n{point _aj,_h}\n{type _aj}\n{set cbuf {"cell":"_aj"}}';
+  env.vars.A='_aj';env.pastes.Z='_a,_h';
+  env.points['1']={set:true,value:'_a,_h'};env.points['16']={set:true,value:'-_AJ,2000'};
+  env.zones.Z={set:true,value:'_a,0,_aj,_h'};env.zones.X={set:true,value:'a,p'};
+  const before=JSON.stringify(env),conf=controlConfig(env);
+  expect(conf.points['1']).toEqual([25,375]);expect(conf.points['16']).toEqual([-1775,2000]);
+  expect(conf.zones.Z).toEqual([25,0,1775,375]);expect(conf.zones.X).toEqual([25,375,-1775,2000]);
+  expect(conf.script).toBe(env.script);expect(conf.vars.A).toBe('_aj');expect(conf.buffers.Z).toBe('_a,_h');
+  expect(commands(env.script).errors).toEqual([]);expect(JSON.stringify(env)).toBe(before);
+  expect(parseEnv(serializeEnv(env))).toEqual(env);
+  expect(importDocument(registryDocument(env))).toEqual(env);
+  expect(importDocument(env.script,env).script).toBe(env.script);
+  for(const value of ['_,0','_1,0','_zzzz,0','_a;exit,0','_a,','0,Infinity']){
+    env.points['1'].value=value;expect(()=>controlConfig(env)).toThrow();
+  }
+});
+
 test("overlay requests preserve physical coordinates, resolve point-pair zones and reject cycles",()=>{
   const env=cloneEnv(initialEnv);env.points['1']={set:true,value:'1736,1146'};env.points['2']={set:true,value:'2000,1800'};env.zones.Z={set:true,value:'1,2'};env.zones.X={set:true,value:'Z'};
   const conf=controlConfig(env);expect(conf.points['1']).toEqual([1736,1146]);expect(conf.zones.X).toEqual([1736,1146,2000,1800]);expect(conf.shells.P).toBe('pwsh');
