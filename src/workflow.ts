@@ -87,7 +87,7 @@ export function projectLayout(text: string): Layout {
   return Object.fromEntries(entries.map(([key,v])=>[key,{x:v.x,y:v.y}]));
 }
 export function controlConfig(env: MacrohelpEnvironment) {
-  const coordinate = (value: string): number => {
+  const coordinate = (value: string): number | string => {
     const board = /^(-?)_([a-z]+)$/i.exec(value);
     if (board) {
       let cell = 0;
@@ -95,19 +95,19 @@ export function controlConfig(env: MacrohelpEnvironment) {
         cell = cell * 26 + letter.charCodeAt(0) - 96;
         if (cell > 2000) throw Error(`Board coordinate out of range: ${value}`);
       }
-      return (board[1] ? -1 : 1) * ((cell - 1) * 50 + 25);
+      return value;
     }
     const number = Number(value);
     if (!value || !Number.isFinite(number) || Math.abs(number) > 100000) throw Error(`Invalid coordinate: ${value}`);
     return number;
   };
-  const coords = (value: string, count: number): number[] => {
+  const coords = (value: string, count: number): (number | string)[] => {
     const parts = value.trim().split(/[,\s]+/);
     if (parts.length !== count) throw Error(`Expected ${count} coordinates: ${value}`);
     return parts.map(coordinate);
   };
   const points = Object.fromEntries(Object.entries(env.points).map(([n,p]) => [n, p.set ? coords(p.value,2) : null]));
-  const zone = (slot: string, seen: string[] = []): number[] | null => {
+  const zone = (slot: string, seen: string[] = []): (number | string)[] | null => {
     if (seen.includes(slot)) throw Error(`Cyclic zone ${slot}`);
     const item = env.zones[slot as keyof typeof env.zones];
     if (!item?.set) return null;
