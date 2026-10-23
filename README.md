@@ -1,38 +1,28 @@
-# Macrohard Visual Assembly
+# Macrohard
 
-Stateless React/Vite editor for Macrohelp Registry Hub import/export text.
+Static visual editor for Macrohelp Registry Hub. Uses the existing Tasket/Omarsket daemons; the site contains no automation engine, telemetry or proxy.
 
-It has no daemon, no HTTP calls, and no live runtime communication. The app only edits a local in-memory model, imports plaintext, and exports Macrohelp-compatible plaintext.
-
-```powershell
+```sh
 bun install
-bun run build
 bun run dev
+bun run build
+bun test
 ```
 
-The editor is a visual builder for the same text file Macrohelp imports:
+The built `dist/` uses relative assets and works at a domain root or nested static route.
 
-- Drag and zoom the node canvas to arrange the workflow visually.
-- Edit paths, shell aliases, script text, A/S/D/F variables, Z/X/C/V paste buffers, physical Z/X/C/V zones, important points 1-16, Q visibility defaults, and status ledger fields.
-- Use the token library to append valid brace commands into the script.
-- Use `Text` to paste an existing Macrohelp export, apply it, review the canonical output, copy it, or download it.
+## Editor
 
-The canonical text serializer mirrors Macrohelp's key order and escaping rules for backslashes, carriage returns, newlines, and tabs. A serialize -> parse -> serialize roundtrip should produce identical text.
+Workflow shows individual brace commands with an editable inspector. Double-click the canvas or drag from the library to add commands. Duplicate/delete, undo/redo, zoom, minimap and layout controls are available. Environment retains the original field-node editor.
 
-## Coverage
+F fits the canvas, G toggles the grid, M toggles the minimap. Ctrl+Z / Ctrl+Shift+Z undo/redo configuration edits. Ctrl+S downloads the selected export. Syntax checks understand balanced nested braces; they do not replace native runtime validation.
 
-The current schema tracks:
+Text exports: Macrohelp environment, script-only `registry.txt`, project JSON with command positions, or a Regedited document. The latter contains index 1 with explicit, zero-based inclusive zones: `i1z1` script, `i1z2` environment, `i1z3` project. Import supports all four. Unknown environment fields and literal newlines/backslashes survive roundtrips.
 
-- `MacrohelpRegistryHubExportVersion`, generated/path metadata, `RegistryFilePath`, `ShellAliasX/C/G`, `Script`, status, last Tasket ledger fields, runtime stage fields, and visible line count.
-- Q display toggles: `CrosshairVisible`, `CoordinatePanelVisible`, `KeyHudVisible`, `GridVisible`, and `CoordinatesOnlyMode`.
-- `VarA/S/D/F`, `PasteZ/X/C/V`, `ZoneZ/X/C/V` plus `Zone*Set`, and `Point1..Point16` plus `Point*Set`.
+## Local control
 
-The token library includes shell entry, paste/click mode, value-setting, boolean branches, daemon-backed branches, saved-task checks, schedule playback, zone capture, points, clicks, waits, raw Tasket chords, `ctrlmod`, and `shiftmod`.
+Connect uses the overlay API (`127.0.0.1:7778`, Bearer token) for the same health/state/schema/help/coordinates/control/stop routes as MCP. Requests may be edited as JSON; current-workflow requests default to temporary `no_replace` configuration. Send control executes real actions, not a dry run.
 
-## Verified
+Tasks (`127.0.0.1:7777`, `X-Tasket-Key`) lists and runs saved schedules or inserts their play command. Optional five-second refresh pauses when the page is hidden. No requests occur on startup. Keys remain in component memory and are never exported or saved to browser storage.
 
-Latest local sweep:
-
-- `bun run build` passed.
-- Browser export contained `ZoneZSet`, `Point1Set`, `Point16Set`, `Point16`, `CoordinatesOnlyMode`, shell aliases, vars, pastes, and zones.
-- Raw import mutation preserved `CoordinatesOnlyMode=1`, `Point16=333,444`, `ZoneX=1,2`, and a daemon branch in `VarF`.
+After rebuilding the local Macrohelp listeners, start them with `MACROHELP_CORS=true` for browser access. Windows' execution daemon additionally needs `--key` and `--bind 127.0.0.1`. CORS accepts any origin but retains token authentication, omits cookies, and does not replace the browser's local-network permission. The site never retries uncertain actions automatically.

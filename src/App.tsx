@@ -1,4 +1,4 @@
-import { createContext, memo, useCallback, useContext, useMemo, useRef, useState } from "react";
+import { createContext, memo, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import type { ChangeEvent } from "react";
 import {
   ReactFlow,
@@ -17,6 +17,9 @@ import {
   type NodeProps,
 } from "@xyflow/react";
 import {
+  Undo2,
+  Redo2,
+  PanelLeft,
   Braces,
   Check,
   Copy,
@@ -41,66 +44,7 @@ import {
   X,
 } from "lucide-react";
 
-type PasteSlot = "Z" | "X" | "C" | "V";
-type VarSlot = "A" | "S" | "D" | "F";
-type PointSlot = "1" | "2" | "3" | "4" | "5" | "6" | "7" | "8" | "9" | "10" | "11" | "12" | "13" | "14" | "15" | "16";
-type ShellSlot = "X" | "C" | "G";
-type NodeKind = "paths" | "script" | "vars" | "pastes" | "zones" | "points" | "shells" | "view" | "daemon" | "output";
-type AppView = "builder" | "host";
-
-interface HostTask {
-  name: string;
-  delay?: string;
-  detail?: string;
-}
-
-interface ZoneValue {
-  set: boolean;
-  value: string;
-}
-
-interface PointValue {
-  set: boolean;
-  value: string;
-}
-
-interface MacrohelpEnvironment {
-  version: string;
-  generatedLocal: string;
-  exportPath: string;
-  importPath: string;
-  resolvedExportPath: string;
-  resolvedImportPath: string;
-  statePath: string;
-  registryFilePath: string;
-  shellAliases: Record<ShellSlot, string>;
-  script: string;
-  status: string;
-  lastTasket: {
-    number: string;
-    state: string;
-    message: string;
-  };
-  runtime: {
-    registryHubStage: string;
-    activeVar: string;
-    activePasteSlot: string;
-    activeZoneSlot: string;
-    activePoint: string;
-    visibleLines: string;
-  };
-  toggles: {
-    crosshairVisible: boolean;
-    coordinatePanelVisible: boolean;
-    keyHudVisible: boolean;
-    gridVisible: boolean;
-    coordinatesOnlyMode: boolean;
-  };
-  vars: Record<VarSlot, string>;
-  pastes: Record<PasteSlot, string>;
-  zones: Record<PasteSlot, ZoneValue>;
-  points: Record<PointSlot, PointValue>;
-}
+import { initialEnv, pasteSlots, varSlots, pointSlots, shellSlots, serializeEnv, parseEnv, type PasteSlot, type VarSlot, type NodeKind, type MacrohelpEnvironment, type AppView } from "./environment";
 
 interface TokenItem {
   category: string;
@@ -123,74 +67,6 @@ interface EditorContextValue {
   output: string;
   openExport: () => void;
 }
-
-const pasteSlots: PasteSlot[] = ["Z", "X", "C", "V"];
-const varSlots: VarSlot[] = ["A", "S", "D", "F"];
-const pointSlots = Array.from({ length: 16 }, (_, index) => String(index + 1) as PointSlot);
-const shellSlots: ShellSlot[] = ["X", "C", "G"];
-const defaultPath = "%USERPROFILE%\\Desktop\\temps\\macrohelp-registry-hub-environment.txt";
-
-function emptyPoints(): Record<PointSlot, PointValue> {
-  return Object.fromEntries(pointSlots.map((slot) => [slot, { set: false, value: "" }])) as Record<PointSlot, PointValue>;
-}
-
-const initialEnv: MacrohelpEnvironment = {
-  version: "1",
-  generatedLocal: "",
-  exportPath: defaultPath,
-  importPath: defaultPath,
-  resolvedExportPath: defaultPath,
-  resolvedImportPath: defaultPath,
-  statePath: "",
-  registryFilePath: "%USERPROFILE%\\Desktop\\New Text Document.txt",
-  shellAliases: {
-    X: "powershell",
-    C: "cmd",
-    G: "uv run python",
-  },
-  script: [
-    "{powershell}{wait 700}{paste A}{ENTER}{wait 300}{ALT_LEFT F4}",
-    "{powershell}{wait 700}{buf A}{ctrlmod right 3}{shiftmod up 2}{ALT_LEFT F4}",
-    "{set A $Z}{if A contains waterfront}{enter A}{else}{enter D}{endif}",
-    "{set zone Z 100,100,600,400}{zonebuf Z,C,V}{if V contains approved}{play FollowupTask}{endif}",
-    "{if saved-task OpenDailyFocus exists}{play OpenDailyFocus}{endif}",
-  ].join("\n"),
-  status: "Designed in Macrohelp Visual Assembly.",
-  lastTasket: {
-    number: "-1",
-    state: "",
-    message: "",
-  },
-  runtime: {
-    registryHubStage: "Script",
-    activeVar: "-1",
-    activePasteSlot: "-1",
-    activeZoneSlot: "-1",
-    activePoint: "-1",
-    visibleLines: "3",
-  },
-  toggles: {
-    crosshairVisible: true,
-    coordinatePanelVisible: true,
-    keyHudVisible: true,
-    gridVisible: false,
-    coordinatesOnlyMode: false,
-  },
-  vars: {
-    A: "$ErrorActionPreference = 'Stop'\nWrite-Output 'visible shell buffer ok'",
-    S: "uv run python -c \"print('uv python ok')\"",
-    D: "echo fallback branch",
-    F: "",
-  },
-  pastes: { Z: "", X: "", C: "", V: "" },
-  zones: {
-    Z: { set: true, value: "100,100,600,400" },
-    X: { set: false, value: "" },
-    C: { set: false, value: "" },
-    V: { set: false, value: "" },
-  },
-  points: emptyPoints(),
-};
 
 const tokens: TokenItem[] = [
   { category: "Shell", label: "PowerShell", token: "{powershell}", detail: "Open the visible PowerShell entry route." },
@@ -239,9 +115,9 @@ const tokens: TokenItem[] = [
   { category: "Daemon", label: "Saved Count", token: "{if saved-tasks count > 10}{play MorningStartup}{else}{enter D}{endif}", detail: "Sanity gate against the live saved-task count." },
   { category: "Task", label: "Play Task", token: "{play SomeTask}", detail: "Emit a saved Tasket task play token." },
   { category: "Task", label: "Play .scht", token: "{play SomeTask.scht}", detail: "The .scht suffix is accepted and normalized for Tasket." },
-  { category: "Regedited", label: "Copy Zone", token: "{rgdclip i6z6}", detail: "Run rgd rg <RegistryFilePath> i6z6 --clip through a native Tasket system-command action." },
-  { category: "Regedited", label: "Copy String", token: "{rgdclip i6s6}", detail: "Copy a Regedited string reference from the configured registry file." },
-  { category: "Regedited", label: "Append Zone", token: "{rgdappend i6z6}", detail: "Pipe the current multiline clipboard to rgd rs <RegistryFilePath> i6z6 --append." },
+  { category: "Regedited", label: "Copy Zone", token: "{rgdclip i1z1}", detail: "Run rgd rg <RegistryFilePath> i1z1 --clip through a native Tasket system-command action." },
+  { category: "Regedited", label: "Copy String", token: "{rgdclip i1s1}", detail: "Copy a Regedited string reference from the configured registry file." },
+  { category: "Regedited", label: "Append Zone", token: "{rgdappend i1z1}", detail: "Pipe the current multiline clipboard to rgd rs <RegistryFilePath> i1z1 --append." },
   { category: "Regedited", label: "Append DB Line", token: "{rgdappend i6dbl}", detail: "Pass a DB-line reference verbatim to Regedited; Regedited owns relocation and index updates." },
   { category: "Zone", label: "Image Zone", token: "{zone Z,Z}", detail: "Zone buffer Z, image snip/copy method Z." },
   { category: "Zone", label: "Text Zone", token: "{zone Z,X}", detail: "Zone buffer Z, text extractor method X." },
@@ -260,6 +136,11 @@ const tokens: TokenItem[] = [
   { category: "Keys", label: "Shift Up", token: "{shiftmod up 3}", detail: "Hold Shift while pressing Up three times." },
   { category: "Wheel", label: "Wheel Up", token: "{wheelup}", detail: "Emit one native Tasket MOUSE_WHEEL_UP stroke." },
   { category: "Wheel", label: "Wheel Down x2", token: "{wheeldown 2}", detail: "Emit two separate native Tasket MOUSE_WHEEL_DOWN strokes." },
+  { category: "Regedited", label: "Include workflow", token: "{rgd i1z1}", detail: "Include a workflow from a Regedited zone through the backend Run Command." },
+  { category: "Task", label: "Profile", token: "{profile example}", detail: "Merge and run a saved Macrohelp profile." },
+  { category: "Keys", label: "Press", token: "{press Shift &amp; 3}", detail: "Hold Shift while tapping ampersand three times." },
+  { category: "Shell", label: "PowerShell alias", token: "{pwsh}", detail: "Open the configured terminal and run alias P on Linux." },
+  { category: "Shell", label: "Terminal", token: "{terminal}", detail: "Native terminal shortcut on Linux." },
   { category: "Timing", label: "Wait", token: "{wait 200}", detail: "Wait in milliseconds." },
 ];
 
@@ -305,155 +186,6 @@ function useEditor() {
   const value = useContext(EditorContext);
   if (!value) throw new Error("Editor context missing");
   return value;
-}
-
-function cloneEnv(env: MacrohelpEnvironment): MacrohelpEnvironment {
-  return JSON.parse(JSON.stringify(env)) as MacrohelpEnvironment;
-}
-
-function escapeValue(value: string): string {
-  return value.replace(/\\/g, "\\\\").replace(/\r/g, "\\r").replace(/\n/g, "\\n").replace(/\t/g, "\\t");
-}
-
-function unescapeValue(value: string): string {
-  let out = "";
-  let escaped = false;
-  for (const ch of value) {
-    if (!escaped) {
-      if (ch === "\\") escaped = true;
-      else out += ch;
-      continue;
-    }
-    if (ch === "r") out += "\r";
-    else if (ch === "n") out += "\n";
-    else if (ch === "t") out += "\t";
-    else if (ch === "\\") out += "\\";
-    else out += `\\${ch}`;
-    escaped = false;
-  }
-  if (escaped) out += "\\";
-  return out;
-}
-
-function b(value: boolean): string {
-  return value ? "1" : "0";
-}
-
-function parseBool(value: string): boolean {
-  return ["1", "true", "yes", "on"].includes(value.trim().toLowerCase());
-}
-
-function asPointSlot(value: string): PointSlot | null {
-  return pointSlots.includes(value as PointSlot) ? (value as PointSlot) : null;
-}
-
-function line(key: string, value: string): string {
-  return `${key}=${escapeValue(value)}`;
-}
-
-function serializeEnv(env: MacrohelpEnvironment): string {
-  const rows = [
-    line("MacrohelpRegistryHubExportVersion", env.version),
-    line("GeneratedLocal", env.generatedLocal),
-    line("ExportPath", env.exportPath),
-    line("ImportPath", env.importPath),
-    line("ResolvedExportPath", env.resolvedExportPath),
-    line("ResolvedImportPath", env.resolvedImportPath),
-    line("StatePath", env.statePath),
-    line("RegistryFilePath", env.registryFilePath),
-    line("ShellAliasX", env.shellAliases.X),
-    line("ShellAliasC", env.shellAliases.C),
-    line("ShellAliasG", env.shellAliases.G),
-    line("Script", env.script),
-    line("Status", env.status),
-    line("LastTasketTaskNumber", env.lastTasket.number),
-    line("LastTasketTaskState", env.lastTasket.state),
-    line("LastTasketTaskMessage", env.lastTasket.message),
-    line("RegistryHubStage", env.runtime.registryHubStage),
-    line("ActiveVar", env.runtime.activeVar),
-    line("ActivePasteSlot", env.runtime.activePasteSlot),
-    line("ActiveZoneSlot", env.runtime.activeZoneSlot),
-    line("ActivePoint", env.runtime.activePoint),
-    line("VisibleLines", env.runtime.visibleLines),
-    line("CrosshairVisible", b(env.toggles.crosshairVisible)),
-    line("CoordinatePanelVisible", b(env.toggles.coordinatePanelVisible)),
-    line("KeyHudVisible", b(env.toggles.keyHudVisible)),
-    line("GridVisible", b(env.toggles.gridVisible)),
-    line("CoordinatesOnlyMode", b(env.toggles.coordinatesOnlyMode)),
-  ];
-
-  for (const slot of varSlots) rows.push(line(`Var${slot}`, env.vars[slot]));
-  for (const slot of pasteSlots) rows.push(line(`Paste${slot}`, env.pastes[slot]));
-  for (const slot of pasteSlots) {
-    rows.push(line(`Zone${slot}Set`, b(env.zones[slot].set)));
-    rows.push(line(`Zone${slot}`, env.zones[slot].value));
-  }
-  for (const slot of pointSlots) {
-    rows.push(line(`Point${slot}Set`, b(env.points[slot].set)));
-    rows.push(line(`Point${slot}`, env.points[slot].value));
-  }
-
-  return `${rows.join("\n")}\n`;
-}
-
-function parseEnv(text: string): MacrohelpEnvironment {
-  const next = cloneEnv(initialEnv);
-  for (const raw of text.split("\n")) {
-    const lineText = raw.endsWith("\r") ? raw.slice(0, -1) : raw;
-    const trimmed = lineText.trim();
-    if (!trimmed || trimmed.startsWith("#")) continue;
-    const eq = lineText.indexOf("=");
-    if (eq < 0) continue;
-    const name = lineText.slice(0, eq).trim();
-    const key = name.toLowerCase();
-    const value = unescapeValue(lineText.slice(eq + 1));
-
-    if (key === "macrohelpregistryhubexportversion") next.version = value || "1";
-    else if (key === "generatedlocal") next.generatedLocal = value;
-    else if (key === "exportpath") next.exportPath = value;
-    else if (key === "importpath") next.importPath = value;
-    else if (key === "resolvedexportpath") next.resolvedExportPath = value;
-    else if (key === "resolvedimportpath") next.resolvedImportPath = value;
-    else if (key === "statepath") next.statePath = value;
-    else if (key === "registryfilepath") next.registryFilePath = value;
-    else if (key === "shellaliasx") next.shellAliases.X = value;
-    else if (key === "shellaliasc") next.shellAliases.C = value;
-    else if (key === "shellaliasg") next.shellAliases.G = value;
-    else if (key === "script") next.script = value;
-    else if (key === "status") next.status = value;
-    else if (key === "lasttaskettasknumber") next.lastTasket.number = value;
-    else if (key === "lasttaskettaskstate") next.lastTasket.state = value;
-    else if (key === "lasttaskettaskmessage") next.lastTasket.message = value;
-    else if (key === "registryhubstage") next.runtime.registryHubStage = value;
-    else if (key === "activevar") next.runtime.activeVar = value;
-    else if (key === "activepasteslot") next.runtime.activePasteSlot = value;
-    else if (key === "activezoneslot") next.runtime.activeZoneSlot = value;
-    else if (key === "activepoint") next.runtime.activePoint = value;
-    else if (key === "visiblelines") next.runtime.visibleLines = value;
-    else if (key === "crosshairvisible") next.toggles.crosshairVisible = parseBool(value);
-    else if (key === "coordinatepanelvisible") next.toggles.coordinatePanelVisible = parseBool(value);
-    else if (key === "keyhudvisible") next.toggles.keyHudVisible = parseBool(value);
-    else if (key === "gridvisible") next.toggles.gridVisible = parseBool(value);
-    else if (key === "coordinatesonlymode") next.toggles.coordinatesOnlyMode = parseBool(value);
-    else if (/^var[asdf]$/.test(key)) next.vars[name.slice(3).toUpperCase() as VarSlot] = value;
-    else if (/^paste[zxcv]$/.test(key)) next.pastes[name.slice(5).toUpperCase() as PasteSlot] = value;
-    else if (/^zone[zxcv]set$/.test(key)) next.zones[name.slice(4, 5).toUpperCase() as PasteSlot].set = parseBool(value);
-    else if (/^zone[zxcv]$/.test(key)) {
-      const slot = name.slice(4).toUpperCase() as PasteSlot;
-      next.zones[slot].value = value;
-      if (value.trim()) next.zones[slot].set = true;
-    } else if (/^point\d{1,2}set$/.test(key)) {
-      const slot = asPointSlot(name.slice(5, -3));
-      if (slot) next.points[slot].set = parseBool(value);
-    } else if (/^point\d{1,2}$/.test(key)) {
-      const slot = asPointSlot(name.slice(5));
-      if (slot) {
-        next.points[slot].value = value;
-        if (value.trim()) next.points[slot].set = true;
-      }
-    }
-  }
-  return next;
 }
 
 function setNested<K extends keyof MacrohelpEnvironment>(
@@ -606,6 +338,7 @@ function MacroNode({ data, selected }: NodeProps<Node<MacroNodeData>>) {
         return (
           <>
             <Toggle label="CrosshairVisible" value={env.toggles.crosshairVisible} onChange={(v) => setEnv((p) => ({ ...p, toggles: { ...p.toggles, crosshairVisible: v } }))} />
+            <Toggle label="CursorCoordinatesVisible" value={env.toggles.cursorCoordinatesVisible} onChange={(v)=>setEnv(p=>({...p,toggles:{...p.toggles,cursorCoordinatesVisible:v}}))}/>
             <Toggle label="CoordinatePanelVisible" value={env.toggles.coordinatePanelVisible} onChange={(v) => setEnv((p) => ({ ...p, toggles: { ...p.toggles, coordinatePanelVisible: v } }))} />
             <Toggle label="KeyHudVisible" value={env.toggles.keyHudVisible} onChange={(v) => setEnv((p) => ({ ...p, toggles: { ...p.toggles, keyHudVisible: v } }))} />
             <Toggle label="GridVisible" value={env.toggles.gridVisible} onChange={(v) => setEnv((p) => ({ ...p, toggles: { ...p.toggles, gridVisible: v } }))} />
@@ -675,262 +408,19 @@ function NodeIcon({ kind }: { kind: NodeKind }) {
   return <FileText size={size} />;
 }
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
-function toText(value: unknown): string | undefined {
-  if (typeof value === "string") return value;
-  if (typeof value === "number" || typeof value === "boolean") return String(value);
-  return undefined;
-}
-
-function taskFromRecord(value: Record<string, unknown>): HostTask | null {
-  const name = toText(value.name ?? value.task ?? value.macro ?? value.title ?? value.file);
-  if (!name?.trim()) return null;
-  const delay = toText(value.delay_seconds ?? value.default_delay ?? value.delay ?? value.seconds);
-  const detail = toText(value.description ?? value.detail ?? value.status ?? value.state);
-  return { name: name.trim().replace(/\.scht$/i, ""), delay, detail };
-}
-
-function extractTasks(payload: unknown): HostTask[] {
-  const tasks: HostTask[] = [];
-  const seen = new Set<string>();
-  const add = (task: HostTask | null) => {
-    if (!task?.name) return;
-    const key = task.name.toLowerCase();
-    if (seen.has(key)) return;
-    seen.add(key);
-    tasks.push(task);
-  };
-  const addLine = (line: string) => {
-    const trimmed = line.trim().replace(/^[-*]\s*/, "").replace(/\.scht$/i, "");
-    if (!trimmed || trimmed.startsWith("{") || trimmed.includes("://")) return;
-    add({ name: trimmed });
-  };
-  const visit = (value: unknown) => {
-    if (Array.isArray(value)) {
-      value.forEach((item) => {
-        if (typeof item === "string") addLine(item);
-        else visit(item);
-      });
-      return;
-    }
-    if (!isRecord(value)) return;
-    add(taskFromRecord(value));
-    Object.values(value).forEach((child) => {
-      if (Array.isArray(child) || isRecord(child)) visit(child);
-    });
-  };
-  if (typeof payload === "string") payload.split(/\r?\n/).forEach(addLine);
-  else visit(payload);
-  return tasks;
-}
-
-function extractTaskId(payload: unknown): string {
-  if (typeof payload === "string") {
-    const match = payload.match(/(?:task(?:_number)?|id|#)\D{0,8}(\d+)/i);
-    return match?.[1] ?? "";
-  }
-  if (Array.isArray(payload)) {
-    for (const item of payload) {
-      const found = extractTaskId(item);
-      if (found) return found;
-    }
-    return "";
-  }
-  if (!isRecord(payload)) return "";
-  for (const key of ["task_number", "taskNumber", "task_id", "taskId", "id", "number"]) {
-    const value = payload[key];
-    if (typeof value === "number" || typeof value === "string") return String(value);
-  }
-  for (const child of Object.values(payload)) {
-    const found = extractTaskId(child);
-    if (found) return found;
-  }
-  return "";
-}
-
-function formatDaemonBody(payload: unknown) {
-  if (typeof payload === "string") return payload;
-  return JSON.stringify(payload, null, 2);
-}
-
-function HostMacroTest() {
-  const [baseUrl, setBaseUrl] = useState("http://127.0.0.1:7777");
-  const [macroName, setMacroName] = useState("Move cursor example for codex");
-  const [delay, setDelay] = useState("1");
-  const [loop, setLoop] = useState("1");
-  const [lastTaskId, setLastTaskId] = useState("");
-  const [tasks, setTasks] = useState<HostTask[]>([]);
-  const [busy, setBusy] = useState(false);
-  const [status, setStatus] = useState("Ready.");
-  const [responseText, setResponseText] = useState("No host request sent yet.");
-
-  const daemonUrl = useCallback(
-    (path: string, params?: Record<string, string>) => {
-      const normalized = baseUrl.trim().replace(/\/+$/, "");
-      const url = new URL(path, `${normalized || "http://127.0.0.1:7777"}/`);
-      for (const [key, value] of Object.entries(params ?? {})) {
-        if (value.trim()) url.searchParams.set(key, value.trim());
-      }
-      return url.toString();
-    },
-    [baseUrl],
-  );
-
-  const callDaemon = useCallback(
-    async (label: string, path: string, params?: Record<string, string>) => {
-      let url = "";
-      setBusy(true);
-      setStatus(`${label}...`);
-      try {
-        url = daemonUrl(path, params);
-        setResponseText(`GET ${url}`);
-        const response = await fetch(url, { method: "GET", cache: "no-store" });
-        const text = await response.text();
-        let payload: unknown = text;
-        try {
-          payload = text ? JSON.parse(text) : "";
-        } catch {
-          payload = text;
-        }
-        if (!response.ok) throw new Error(`${response.status} ${response.statusText}\n${formatDaemonBody(payload)}`);
-        const foundTasks = path === "/tasks" ? extractTasks(payload) : [];
-        if (foundTasks.length) setTasks(foundTasks);
-        const taskId = extractTaskId(payload);
-        if (taskId) setLastTaskId(taskId);
-        setStatus(`${label} complete.`);
-        setResponseText([`GET ${url}`, "", formatDaemonBody(payload)].join("\n"));
-      } catch (error) {
-        const message = error instanceof Error ? error.message : String(error);
-        setStatus(`${label} blocked or failed.`);
-        setResponseText([`GET ${url}`, "", message, "", "If this was a local browser/CORS block, the GET may still have reached the daemon. Use Run for the one-way macro trigger; use readable calls only when the daemon exposes browser-safe headers."].join("\n"));
-      } finally {
-        setBusy(false);
-      }
-    },
-    [daemonUrl],
-  );
-
-  const triggerOpaque = useCallback(async () => {
-    const params: Record<string, string> = { task: macroName };
-    if (delay.trim()) params.delay = delay;
-    if (loop.trim()) params.loop = loop;
-    let url = "";
-    setBusy(true);
-    setStatus("Opaque trigger...");
-    try {
-      url = daemonUrl("/run", params);
-      setResponseText(`GET ${url}`);
-      await fetch(url, { method: "GET", mode: "no-cors", cache: "no-store" });
-      setStatus("Run request sent.");
-      setResponseText([`GET ${url}`, "", "Browser accepted the one-way macro request. The response is intentionally unreadable in no-cors mode; check Tasket or the daemon log for the run result."].join("\n"));
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      setStatus("Opaque trigger failed.");
-      setResponseText([`GET ${url}`, "", message].join("\n"));
-    } finally {
-      setBusy(false);
-    }
-  }, [daemonUrl, delay, loop, macroName]);
-
-  const runParams = useMemo(() => {
-    const params: Record<string, string> = { task: macroName };
-    if (delay.trim()) params.delay = delay;
-    if (loop.trim()) params.loop = loop;
-    return params;
-  }, [delay, loop, macroName]);
-
-  return (
-    <section className="host-test">
-      <div className="host-grid">
-        <section className="host-panel host-control">
-          <header>
-            <div>
-              <strong>Tasket Host Test</strong>
-              <span>current Tasket v2 GET routes on the local daemon</span>
-            </div>
-            <span className={`status-pill ${busy ? "busy" : "idle"}`}>{busy ? "calling" : status}</span>
-          </header>
-          <div className="host-form">
-            <label>
-              <span>Daemon URL</span>
-              <input className="mono" value={baseUrl} onChange={(event) => setBaseUrl(event.target.value)} spellCheck={false} />
-            </label>
-            <label>
-              <span>Tasket Macro</span>
-              <input className="mono" value={macroName} onChange={(event) => setMacroName(event.target.value)} spellCheck={false} />
-            </label>
-            <label>
-              <span>Delay Seconds</span>
-              <input className="mono" value={delay} onChange={(event) => setDelay(event.target.value)} spellCheck={false} />
-            </label>
-            <label>
-              <span>Loop Count</span>
-              <input className="mono" value={loop} onChange={(event) => setLoop(event.target.value)} spellCheck={false} />
-            </label>
-          </div>
-          <div className="host-actions">
-            <button type="button" disabled={busy} onClick={() => callDaemon("Health", "/health")}>
-              <Check size={15} /> Health
-            </button>
-            <button type="button" disabled={busy} onClick={() => callDaemon("Task list", "/tasks")}>
-              <Search size={15} /> Tasks
-            </button>
-            <button type="button" disabled={busy} onClick={() => callDaemon("Daemon status", "/status")}>
-              <Database size={15} /> Status
-            </button>
-            <button type="button" disabled={busy || !macroName.trim()} onClick={triggerOpaque}>
-              <Play size={15} /> Run
-            </button>
-            <button type="button" disabled={busy || !macroName.trim()} onClick={() => callDaemon("Run + read", "/run", runParams)}>
-              <Upload size={15} /> Run + Read
-            </button>
-            <button type="button" disabled={busy || !lastTaskId.trim()} onClick={() => callDaemon("Check task", "/check", { id: lastTaskId })}>
-              <FileText size={15} /> Check
-            </button>
-          </div>
-        </section>
-
-        <section className="host-panel">
-          <header>
-            <div>
-              <strong>Saved Tasks</strong>
-              <span>{tasks.length ? `${tasks.length} loaded from daemon` : "load /tasks or type a macro name"}</span>
-            </div>
-          </header>
-          <div className="task-list">
-            {tasks.length ? (
-              tasks.map((task) => (
-                <button key={task.name} type="button" onClick={() => setMacroName(task.name)} className={macroName === task.name ? "selected" : ""}>
-                  <strong>{task.name}</strong>
-                  <span>{task.delay ? `${task.delay}s` : "delay from macro"}</span>
-                  {task.detail && <small>{task.detail}</small>}
-                </button>
-              ))
-            ) : (
-              <div className="empty-state">No task inventory loaded.</div>
-            )}
-          </div>
-        </section>
-
-        <section className="host-panel host-output">
-          <header>
-            <div>
-              <strong>Daemon Response</strong>
-              <span>{lastTaskId ? `last task #${lastTaskId}` : "no task number captured yet"}</span>
-            </div>
-          </header>
-          <pre>{responseText}</pre>
-        </section>
-      </div>
-    </section>
-  );
-}
+import WorkflowCanvas from "./WorkflowCanvas";
+import HostPanel from "./HostPanel";
+import { useHistory } from "./useHistory";
+import { commands, download, importDocument, registryDocument, projectLayout, type Layout } from "./workflow";
 
 function App() {
-  const [env, setEnv] = useState<MacrohelpEnvironment>(initialEnv);
+  const history = useHistory<MacrohelpEnvironment>(initialEnv);
+  const env = history.value, setEnv = history.change;
+  const [board, setBoard] = useState<"commands"|"environment">("commands");
+  const [libraryOpen,setLibraryOpen]=useState(true);
+  const [format, setFormat] = useState<"environment"|"script"|"registry"|"project">("environment");
+  const [notice, setNotice] = useState("");
+  const [layout,setLayout]=useState<Layout>({});
   const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes);
   const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges);
   const [tokenSearch, setTokenSearch] = useState("");
@@ -941,7 +431,11 @@ function App() {
   const fileRef = useRef<HTMLInputElement>(null);
 
   const output = useMemo(() => serializeEnv(env), [env]);
+  const exported = useMemo(()=>{try{return {text:format==="script"?env.script:format==="registry"?registryDocument(env,1,layout):format==="project"?JSON.stringify({format:"macrohard",version:1,environment:env,layout},null,2):output,error:""}}catch(e){return {text:"",error:e instanceof Error?e.message:String(e)}}},[env,format,output,layout]);
+  const filename = format==="script"?"registry.txt":format==="registry"?"macrohelp.regd.txt":format==="project"?"macrohard.json":"macrohelp-registry-hub-environment.txt";
+  useEffect(()=>{const handler=(event:KeyboardEvent)=>{if((event.target as HTMLElement).closest("input,textarea,[contenteditable=true]"))return;if((event.ctrlKey||event.metaKey)&&event.key.toLowerCase()==="z"){event.preventDefault();event.shiftKey?history.redo():history.undo()}if((event.ctrlKey||event.metaKey)&&event.key.toLowerCase()==="s"){event.preventDefault();if(!exported.error)download(exported.text,filename)}};window.addEventListener("keydown",handler);return()=>window.removeEventListener("keydown",handler)},[history.undo,history.redo,exported,filename]);
   const stable = useMemo(() => serializeEnv(parseEnv(output)) === output, [output]);
+  const lint = useMemo(()=>commands(env.script).errors,[env.script]);
   const nodeTypes = useMemo(() => ({ macroNode: MemoNode }), []);
   const categories = useMemo(() => ["All", ...Array.from(new Set(tokens.map((t) => t.category)))], []);
   const [category, setCategory] = useState("All");
@@ -964,36 +458,29 @@ function App() {
   }, []);
 
   const copyOutput = useCallback(async () => {
-    await navigator.clipboard.writeText(output);
+    if(exported.error){setNotice(exported.error);return}
+    try { await navigator.clipboard.writeText(exported.text); } catch { setNotice("Clipboard unavailable. Select and copy the export in Text."); setRawOpen(true); return; }
     setCopied(true);
     window.setTimeout(() => setCopied(false), 1400);
-  }, [output]);
+  }, [exported]);
 
-  const downloadOutput = useCallback(() => {
-    const blob = new Blob([output], { type: "text/plain;charset=utf-8" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = "macrohelp-registry-hub-environment.txt";
-    a.click();
-    URL.revokeObjectURL(url);
-  }, [output]);
+  const downloadOutput = useCallback(() => { if(exported.error){setNotice(exported.error);return}download(exported.text,filename); }, [exported,filename]);
 
   const importFile = useCallback(async (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
     const text = await file.text();
-    setEnv(parseEnv(text));
-    setRawImport(text);
+    try { const next=importDocument(text,env), positions=projectLayout(text);setEnv(next);setLayout(positions); setNotice(""); setRawImport(text); } catch(e) { setNotice(e instanceof Error?e.message:String(e)); }
     event.target.value = "";
-  }, []);
+  }, [env,setEnv]);
 
   const applyRaw = useCallback(() => {
-    setEnv(parseEnv(rawImport));
-  }, [rawImport]);
+    try { const next=importDocument(rawImport,env), positions=projectLayout(rawImport);setEnv(next);setLayout(positions); setNotice(""); } catch(e) { setNotice(e instanceof Error?e.message:String(e)); }
+  }, [rawImport,env,setEnv]);
 
   const reset = useCallback(() => {
     setEnv(initialEnv);
+    setLayout({});
     setNodes(initialNodes);
     setEdges(initialEdges);
     setRawImport("");
@@ -1004,26 +491,30 @@ function App() {
   return (
     <EditorContext.Provider value={context}>
       <main className="app-shell">
-        <input ref={fileRef} className="hidden" type="file" accept=".txt,.env,.md,text/plain" onChange={importFile} />
+        <input ref={fileRef} className="hidden" type="file" accept=".txt,.env,.md,.json,text/plain,application/json" onChange={importFile} />
         <nav className="topbar">
           <div className="brand">
             <Workflow size={21} />
             <div>
-              <strong>Macrohelp Visual Assembly</strong>
-              <span>Tasket v2 + Regedited command graph</span>
+              <strong>Macrohard</strong>
+              <span>Registry workspace</span>
             </div>
           </div>
           <div className="view-tabs" role="tablist" aria-label="Macrohelp views">
-            <button className={activeView === "builder" ? "active" : ""} type="button" onClick={() => setActiveView("builder")}>
-              Builder
+            <button className={activeView === "builder" && board === "commands" ? "active" : ""} type="button" onClick={() => {setActiveView("builder");setBoard("commands")}}>
+              Workflow
             </button>
+            <button className={activeView==="builder"&&board==="environment"?"active":""} type="button" onClick={()=>{setActiveView("builder");setBoard("environment")}}>Environment</button>
             <button className={activeView === "host" ? "active" : ""} type="button" onClick={() => setActiveView("host")}>
-              Host Test
+              Connect
             </button>
           </div>
           <div className="toolbar-group">
             {activeView === "builder" ? (
               <>
+                <button onClick={()=>setLibraryOpen(v=>!v)} title="Toggle command library"><PanelLeft size={16}/></button>
+                <button disabled={!history.canUndo} onClick={history.undo} title="Undo (Ctrl+Z)"><Undo2 size={16}/></button>
+                <button disabled={!history.canRedo} onClick={history.redo} title="Redo (Ctrl+Shift+Z)"><Redo2 size={16}/></button>
                 <button data-testid="toolbar-import" type="button" onClick={() => fileRef.current?.click()} title="Import text file">
                   <FileInput size={16} /> Import
                 </button>
@@ -1041,14 +532,14 @@ function App() {
                 </button>
               </>
             ) : (
-              <span className="toolbar-note">local daemon request lab</span>
+              <span className="toolbar-note">local HTTP control</span>
             )}
           </div>
-          <div className={`status ${stable ? "ok" : "bad"}`}>{stable ? "canonical" : "roundtrip drift"}</div>
+          <div className={`status ${stable&&!lint.length ? "ok" : "bad"}`} title={lint.join("\n")}>{lint.length?`${lint.length} syntax issues`:stable?"canonical":"roundtrip drift"}</div>
         </nav>
 
         {activeView === "builder" ? (
-          <div className="workspace">
+          <div className={`workspace ${libraryOpen?"":"library-closed"}`}>
             <aside className="library">
               <div className="search">
                 <Search size={16} />
@@ -1063,7 +554,7 @@ function App() {
               </div>
               <div className="token-list">
                 {filteredTokens.map((token) => (
-                  <button className="token-item" key={`${token.category}-${token.label}`} onClick={() => appendScript(token.token)} type="button">
+                  <button className="token-item" key={`${token.category}-${token.token}`} draggable onDragStart={e=>e.dataTransfer.setData("application/x-macrohard-token",token.token)} onClick={() => appendScript(token.token)} type="button">
                     <span>{token.category}</span>
                     <strong>{token.label}</strong>
                     <code>{token.token}</code>
@@ -1074,7 +565,7 @@ function App() {
             </aside>
 
             <section className="flow-wrap">
-              <ReactFlow
+              {board==="commands"?<WorkflowCanvas script={env.script} change={script=>setEnv(prev=>({...prev,script}))} palette={tokens} positions={layout} setPositions={setLayout}/>:<ReactFlow
                 nodes={nodes}
                 edges={edges}
                 onNodesChange={onNodesChange}
@@ -1105,24 +596,26 @@ function App() {
                   <Maximize2 size={15} />
                   <span>{nodes.length} editable nodes</span>
                 </Panel>
-              </ReactFlow>
+              </ReactFlow>}
             </section>
           </div>
         ) : (
-          <HostMacroTest />
+          <HostPanel env={env} append={appendScript} capture={(slot,x,y)=>setEnv(prev=>({...prev,points:{...prev.points,[slot]:{set:true,value:`${x},${y}`}}}))}/>
         )}
 
+        {notice&&<div className="toast" role="alert">{notice}<button onClick={()=>setNotice("")} title="Dismiss"><X size={14}/></button></div>}
         {activeView === "builder" && rawOpen && (
           <section className="raw-drawer" role="dialog" aria-modal="true">
             <div className="raw-head">
               <div>
-                <strong>Macrohelp Text</strong>
-                <span>{output.length.toLocaleString()} characters</span>
+                <strong>Export</strong>
+                <span>{exported.text.length.toLocaleString()} characters</span>
               </div>
               <button type="button" onClick={() => setRawOpen(false)} title="Close">
                 <X size={18} />
               </button>
             </div>
+            <div className="export-options"><select aria-label="Export format" value={format} onChange={e=>setFormat(e.target.value as typeof format)}><option value="environment">Macrohelp environment · .txt</option><option value="script">Script only · registry.txt</option><option value="registry">Regedited · 3 indexed zones</option><option value="project">Project · .json</option></select><span>{format==="registry"?"i1z1 script · i1z2 environment · i1z3 project":filename}</span>{exported.error&&<span role="alert">{exported.error}</span>}</div>
             <div className="raw-grid">
               <label>
                 <span>Import</span>
@@ -1133,7 +626,7 @@ function App() {
               </label>
               <label>
                 <span>Export</span>
-                <textarea data-testid="raw-export" value={output} readOnly spellCheck={false} />
+                <textarea data-testid="raw-export" value={exported.text} readOnly spellCheck={false} />
                 <div className="raw-actions">
                   <button data-testid="raw-copy" type="button" onClick={copyOutput}>
                     <Copy size={15} /> Copy
